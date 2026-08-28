@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Viral AI Creator Assistant</title>
+<style>
+body {
+    background:#111;
+    color:white;
+    font-family:Arial;
+    padding:40px;
+}
+
+.box {
+    max-width:900px;
+    margin:auto;
+}
+
+input {
+    width:70%;
+    padding:15px;
+    font-size:18px;
+}
+
+button {
+    padding:15px;
+    background:#ff6600;
+    color:white;
+    border:0;
+    cursor:pointer;
+}
+
+.card {
+    background:#222;
+    padding:20px;
+    margin-top:20px;
+    border-radius:10px;
+}
+</style>
+</head>
+
+<body>
+
+<div class="box">
+
+<h1>🔥 Viral AI Creator Assistant</h1>
+
+<form method="POST">
+
+<input name="topic" placeholder="Enter video topic">
+
+<button>
+Analyze
+</button>
+
+</form>
+
+
+{% if result %}
+
+<div class="card">
+
+<h2>Results</h2>
+
+<pre>{{result}}</pre>
+
+</div>
+
+{% endif %}
+
+
+</div>
+
+</body>
+</html>
