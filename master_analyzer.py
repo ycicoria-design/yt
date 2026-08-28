@@ -1,95 +1,204 @@
 from youtube_engine import get_shorts, analyze_keywords, analyze_hashtags, viral_velocity
-from strategy_engine import generate_report
+
+
+def clean_tag(tag):
+    tag = str(tag).strip().replace("#", "").replace(" ", "")
+    return tag
 
 
 def master_viral_analysis(topic):
-    print("Collecting viral YouTube Shorts data...")
-
     videos = get_shorts(topic)
 
     if not videos:
         return {
             "success": False,
-            "message": "No videos found for this topic."
+            "topic": topic,
+            "message": "No recent YouTube Shorts were found for this topic."
         }
+
+    # ----------------------------
+    # KEYWORDS
+    # ----------------------------
 
     keywords = []
 
     try:
-        for word, count in analyze_keywords(videos):
+        keyword_results = analyze_keywords(videos)
+
+        for word, count in keyword_results[:10]:
             keywords.append({
                 "keyword": word,
                 "count": count
             })
-    except Exception as e:
-        keywords = [{"error": str(e)}]
 
+    except Exception as e:
+        print("KEYWORD ERROR:", e)
+
+
+    # ----------------------------
+    # HASHTAGS
+    # ----------------------------
 
     hashtags = []
 
     try:
-        for item in analyze_hashtags(videos):
+        hashtag_results = analyze_hashtags(videos)
 
-            if len(item) == 4:
+        for item in hashtag_results:
+
+            if len(item) >= 4:
                 tag, score, status, data = item
 
-                hashtags.append({
-                    "hashtag": tag,
-                    "score": score,
-                    "status": status,
-                    "data": data
-                })
+                tag = clean_tag(tag)
 
-            elif len(item) == 2:
+                if tag:
+                    hashtags.append("#" + tag)
+
+            elif len(item) >= 2:
                 tag, count = item
 
-                hashtags.append({
-                    "hashtag": tag,
-                    "score": min(100, count * 5),
-                    "count": count
-                })
+                tag = clean_tag(tag)
+
+                if tag:
+                    hashtags.append("#" + tag)
 
     except Exception as e:
-        hashtags = [{"error": str(e)}]
+        print("HASHTAG ERROR:", e)
 
+
+    # If YouTube data has no hashtags,
+    # generate useful ones from the actual topic/keywords.
+
+    topic_tag = clean_tag(topic)
+
+    if topic_tag:
+        hashtags.insert(0, "#" + topic_tag)
+
+    for item in keywords[:5]:
+
+        word = clean_tag(item["keyword"])
+
+        if len(word) >= 3:
+            candidate = "#" + word
+
+            if candidate.lower() not in [x.lower() for x in hashtags]:
+                hashtags.append(candidate)
+
+
+    universal_tags = [
+        "#Shorts",
+        "#YouTubeShorts"
+    ]
+
+    for tag in universal_tags:
+        if tag.lower() not in [x.lower() for x in hashtags]:
+            hashtags.append(tag)
+
+
+    hashtags = hashtags[:8]
+
+
+    # ----------------------------
+    # TITLE IDEAS
+    # ----------------------------
+
+    main_keyword = topic
+
+    if keywords:
+        candidate = keywords[0]["keyword"]
+
+        if len(candidate) >= 3:
+            main_keyword = candidate
+
+
+    titles = [
+        f"This {topic} Moment Is Actually Insane",
+        f"I Didn't Expect This From {topic}...",
+        f"Everyone Is Talking About This {topic} Moment",
+        f"This Changed Everything For {topic}",
+        f"You Need To See This {topic} Clip"
+    ]
+
+
+    # ----------------------------
+    # BEST TITLE
+    # ----------------------------
+
+    best_title = titles[0]
+
+
+    # ----------------------------
+    # HOOK IDEAS
+    # ----------------------------
+
+    hooks = [
+        "Wait until you see what happens...",
+        "I seriously wasn't expecting this.",
+        "Watch this before you scroll.",
+        "This is why everyone is talking about it.",
+        "The ending completely changes everything."
+    ]
+
+
+    # ----------------------------
+    # FRESHNESS
+    # ----------------------------
 
     freshness = {
-        "Last hour": 0,
-        "Last 6 hours": 0,
-        "Last 24 hours": 0,
-        "Last 7 days": 0
+        "last_hour": 0,
+        "last_6_hours": 0,
+        "last_24_hours": 0,
+        "last_7_days": 0
     }
 
-
     for video in videos:
-        age = video.get("hours_old", 999)
+
+        age = video.get("hours_old", 999999)
 
         if age <= 1:
-            freshness["Last hour"] += 1
+            freshness["last_hour"] += 1
 
-        elif age <= 6:
-            freshness["Last 6 hours"] += 1
+        if age <= 6:
+            freshness["last_6_hours"] += 1
 
-        elif age <= 24:
-            freshness["Last 24 hours"] += 1
+        if age <= 24:
+            freshness["last_24_hours"] += 1
 
-        elif age <= 168:
-            freshness["Last 7 days"] += 1
+        if age <= 168:
+            freshness["last_7_days"] += 1
 
+
+    # ----------------------------
+    # VIRAL VELOCITY
+    # ----------------------------
 
     try:
         velocity = viral_velocity(videos)
-    except Exception:
+
+    except Exception as e:
+        print("VELOCITY ERROR:", e)
         velocity = None
 
 
     return {
+
         "success": True,
+
         "topic": topic,
+
         "videos_analyzed": len(videos),
-        "keywords": keywords,
+
+        "best_title": best_title,
+
+        "titles": titles,
+
         "hashtags": hashtags,
+
+        "hooks": hooks,
+
+        "keywords": keywords,
+
         "freshness": freshness,
-        "viral_velocity": velocity,
-        "videos": videos
+
+        "viral_velocity": velocity
     }
