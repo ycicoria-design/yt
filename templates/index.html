@@ -1,39 +1,318 @@
-
 <!doctype html>
+
 <html>
+
 <head>
+
+<meta charset="utf-8">
+
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <title>Viral AI Creator Assistant</title>
+
 <style>
-body{background:#090909;color:white;font-family:Arial;padding:30px}
-.card{background:#171717;border-radius:15px;padding:20px;margin:15px 0}
-input,button{padding:15px;border-radius:10px;border:0}
-button{background:#ff6b35;color:white}
-pre{white-space:pre-wrap}
+
+body{
+    background:#090909;
+    color:white;
+    font-family:Arial,sans-serif;
+    padding:30px;
+    max-width:1000px;
+    margin:auto;
+}
+
+h1{
+    margin-bottom:25px;
+}
+
+form{
+    display:flex;
+    gap:10px;
+    margin-bottom:25px;
+}
+
+input{
+    flex:1;
+    padding:15px;
+    border-radius:10px;
+    border:1px solid #333;
+    background:#171717;
+    color:white;
+    font-size:16px;
+}
+
+button{
+    padding:15px 25px;
+    border-radius:10px;
+    border:0;
+    background:#ff6b35;
+    color:white;
+    font-weight:bold;
+    font-size:16px;
+    cursor:pointer;
+}
+
+.card{
+    background:#171717;
+    border:1px solid #252525;
+    border-radius:15px;
+    padding:22px;
+    margin:15px 0;
+}
+
+.big-title{
+    font-size:24px;
+    font-weight:bold;
+    line-height:1.35;
+}
+
+.title-option{
+    background:#101010;
+    padding:14px;
+    border-radius:10px;
+    margin:8px 0;
+}
+
+.hashtags{
+    font-size:18px;
+    line-height:1.8;
+}
+
+.tag{
+    display:inline-block;
+    background:#242424;
+    padding:8px 12px;
+    border-radius:20px;
+    margin:4px;
+}
+
+.keyword{
+    display:flex;
+    justify-content:space-between;
+    border-bottom:1px solid #292929;
+    padding:10px 0;
+}
+
+.stat-grid{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
+    gap:10px;
+}
+
+.stat{
+    background:#101010;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+
+.number{
+    font-size:25px;
+    font-weight:bold;
+}
+
+.error{
+    background:#351515;
+}
+
 </style>
+
 </head>
+
 <body>
+
 <h1>🔥 PRO CREATOR ASSISTANT</h1>
+
 <form method="post">
-<input name="topic" placeholder="Enter video topic" style="width:60%">
-<button>Analyze</button>
+
+<input
+name="topic"
+placeholder="What is your Short about?"
+required
+>
+
+<button type="submit">
+Analyze
+</button>
+
 </form>
 
+
 {% if error %}
-<div class="card">{{error}}</div>
+
+<div class="card error">
+
+{{ error }}
+
+</div>
+
 {% endif %}
+
 
 {% if report %}
-<div class="card">
-<h2>📌 Topic</h2>
-{{report.topic if report.topic else ""}}
+
+
+{% if report.success == false %}
+
+<div class="card error">
+
+<h2>No results</h2>
+
+<p>{{ report.message }}</p>
+
 </div>
 
-{% for key,value in report.items() %}
+
+{% else %}
+
+
 <div class="card">
-<h2>{{key}}</h2>
-<pre>{{value}}</pre>
+
+<h2>🎯 BEST TITLE TO USE</h2>
+
+<div class="big-title">
+
+{{ report.best_title }}
+
 </div>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>🔥 ALTERNATIVE TITLES</h2>
+
+{% for title in report.titles %}
+
+<div class="title-option">
+
+{{ loop.index }}. {{ title }}
+
+</div>
+
 {% endfor %}
+
+</div>
+
+
+
+<div class="card">
+
+<h2>#️⃣ HASHTAGS TO USE</h2>
+
+<div class="hashtags">
+
+{% for tag in report.hashtags %}
+
+<span class="tag">{{ tag }}</span>
+
+{% endfor %}
+
+</div>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>⚡ OPENING HOOKS</h2>
+
+{% for hook in report.hooks %}
+
+<div class="title-option">
+
+{{ hook }}
+
+</div>
+
+{% endfor %}
+
+</div>
+
+
+
+<div class="card">
+
+<h2>📊 LIVE YOUTUBE DATA</h2>
+
+<div class="stat-grid">
+
+<div class="stat">
+
+<div class="number">
+{{ report.videos_analyzed }}
+</div>
+
+Videos Analyzed
+
+</div>
+
+
+<div class="stat">
+
+<div class="number">
+{{ report.freshness.last_hour }}
+</div>
+
+Last Hour
+
+</div>
+
+
+<div class="stat">
+
+<div class="number">
+{{ report.freshness.last_24_hours }}
+</div>
+
+Last 24 Hours
+
+</div>
+
+
+<div class="stat">
+
+<div class="number">
+{{ report.freshness.last_7_days }}
+</div>
+
+Last 7 Days
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>🔎 TRENDING KEYWORDS</h2>
+
+{% for item in report.keywords %}
+
+<div class="keyword">
+
+<span>{{ item.keyword }}</span>
+
+<strong>{{ item.count }}</strong>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+
 {% endif %}
+
+{% endif %}
+
+
 </body>
+
 </html>
