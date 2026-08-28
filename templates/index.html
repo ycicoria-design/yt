@@ -1,74 +1,39 @@
-<!DOCTYPE html>
+
+<!doctype html>
 <html>
 <head>
 <title>Viral AI Creator Assistant</title>
 <style>
-body {
-    background:#111;
-    color:white;
-    font-family:Arial;
-    padding:40px;
-}
-
-.box {
-    max-width:900px;
-    margin:auto;
-}
-
-input {
-    width:70%;
-    padding:15px;
-    font-size:18px;
-}
-
-button {
-    padding:15px;
-    background:#ff6600;
-    color:white;
-    border:0;
-    cursor:pointer;
-}
-
-.card {
-    background:#222;
-    padding:20px;
-    margin-top:20px;
-    border-radius:10px;
-}
+body{background:#090909;color:white;font-family:Arial;padding:30px}
+.card{background:#171717;border-radius:15px;padding:20px;margin:15px 0}
+input,button{padding:15px;border-radius:10px;border:0}
+button{background:#ff6b35;color:white}
+pre{white-space:pre-wrap}
 </style>
 </head>
-
 <body>
-
-<div class="box">
-
-<h1>🔥 Viral AI Creator Assistant</h1>
-
-<form method="POST">
-
-<input name="topic" placeholder="Enter video topic">
-
-<button>
-Analyze
-</button>
-
+<h1>🔥 PRO CREATOR ASSISTANT</h1>
+<form method="post">
+<input name="topic" placeholder="Enter video topic" style="width:60%">
+<button>Analyze</button>
 </form>
 
-
-{% if result %}
-
-<div class="card">
-
-<h2>Results</h2>
-
-<pre>{{result}}</pre>
-
-</div>
-
+{% if error %}
+<div class="card">{{error}}</div>
 {% endif %}
 
-
+{% if report %}
+<div class="card">
+<h2>📌 Topic</h2>
+{{report.topic if report.topic else ""}}
 </div>
 
+{% for key,value in report.items() %}
+<div class="card">
+<h2>{{key}}</h2>
+<pre>{{value}}</pre>
+</div>
+{% endfor %}
+{% endif %}
 </body>
 </html>

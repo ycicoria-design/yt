@@ -1,6 +1,3 @@
 flask
-gunicorn
+google-api-python-client
 requests
-beautifulsoup4
-youtube-search-python
-python-dotenv

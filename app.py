@@ -1,24 +1,34 @@
+
 from flask import Flask, render_template, request
-from viral_ai import master_viral_analysis
+import traceback
 
 app = Flask(__name__)
 
+# Import your original engine
+try:
+    from master_analyzer import master_viral_analysis
+except Exception:
+    try:
+        from viral_ai import master_viral_analysis
+    except Exception:
+        master_viral_analysis = None
+
 @app.route("/", methods=["GET", "POST"])
-def home():
-    result = None
+def index():
+    report = None
+    error = None
 
     if request.method == "POST":
-        topic = request.form.get("topic")
-
+        topic = request.form.get("topic", "")
         try:
-            result = master_viral_analysis(topic)
+            if master_viral_analysis:
+                report = master_viral_analysis(topic)
+            else:
+                error = "Engine import failed"
         except Exception as e:
-            result = {
-                "error": str(e)
-            }
+            error = str(e)
 
-    return render_template("index.html", result=result)
-
+    return render_template("index.html", report=report, error=error)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+    app.run(host="0.0.0.0", port=3000)
