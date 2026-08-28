@@ -1,59 +1,95 @@
 from youtube_engine import get_shorts, analyze_keywords, analyze_hashtags, viral_velocity
 from strategy_engine import generate_report
 
-topic = input("\n🎬 What video niche/topic are you analyzing? ")
 
-print("\n📡 Collecting viral YouTube Shorts data...")
+def master_viral_analysis(topic):
+    print("Collecting viral YouTube Shorts data...")
 
-videos = get_shorts(topic)
+    videos = get_shorts(topic)
 
-if not videos:
-    print("No videos found.")
-    exit()
+    if not videos:
+        return {
+            "success": False,
+            "message": "No videos found for this topic."
+        }
 
-print("\n📊 DATA FOUND:")
-print("Videos analyzed:", len(videos))
+    keywords = []
 
-print("\n🔥 TOP KEYWORDS:")
-for word, count in analyze_keywords(videos):
-    print("-", word, count)
+    try:
+        for word, count in analyze_keywords(videos):
+            keywords.append({
+                "keyword": word,
+                "count": count
+            })
+    except Exception as e:
+        keywords = [{"error": str(e)}]
 
-print("\n🎯 TOP HASHTAGS:")
-for tag, score, status, data in analyze_hashtags(videos):
-    print("-", tag, count)
 
-print("\n⚡ VIRAL FRESHNESS RADAR")
-print("=" * 35)
+    hashtags = []
 
-fresh = {
-    "Last hour": 0,
-    "Last 6 hours": 0,
-    "Last 24 hours": 0,
-    "Last 7 days": 0
-}
+    try:
+        for item in analyze_hashtags(videos):
 
-for v in videos:
-    age = v.get("hours_old", 999)
+            if len(item) == 4:
+                tag, score, status, data = item
 
-    if age <= 1:
-        fresh["Last hour"] += 1
-    elif age <= 6:
-        fresh["Last 6 hours"] += 1
-    elif age <= 24:
-        fresh["Last 24 hours"] += 1
-    elif age <= 168:
-        fresh["Last 7 days"] += 1
+                hashtags.append({
+                    "hashtag": tag,
+                    "score": score,
+                    "status": status,
+                    "data": data
+                })
 
-for k,v in fresh.items():
-    print("-", k, ":", v)
+            elif len(item) == 2:
+                tag, count = item
 
-print("\n🔥 HASHTAG VIRAL SCORES")
-print("=" * 35)
+                hashtags.append({
+                    "hashtag": tag,
+                    "score": min(100, count * 5),
+                    "count": count
+                })
 
-for tag,count in analyze_hashtags(videos):
-    score = min(100, count * 5)
-    print(f"#{tag} | Score {score}/100 | Used {count} times")
+    except Exception as e:
+        hashtags = [{"error": str(e)}]
 
-idea = input("\n💡 Describe your exact video idea: ")
 
-generate_report(idea, videos)
+    freshness = {
+        "Last hour": 0,
+        "Last 6 hours": 0,
+        "Last 24 hours": 0,
+        "Last 7 days": 0
+    }
+
+
+    for video in videos:
+        age = video.get("hours_old", 999)
+
+        if age <= 1:
+            freshness["Last hour"] += 1
+
+        elif age <= 6:
+            freshness["Last 6 hours"] += 1
+
+        elif age <= 24:
+            freshness["Last 24 hours"] += 1
+
+        elif age <= 168:
+            freshness["Last 7 days"] += 1
+
+
+    try:
+        velocity = viral_velocity(videos)
+    except Exception:
+        velocity = None
+
+
+    return {
+        "success": True,
+        "topic": topic,
+        "videos_analyzed": len(videos),
+        "keywords": keywords,
+        "hashtags": hashtags,
+        "freshness": freshness,
+        "viral_velocity": velocity,
+        "videos": videos
+    }
