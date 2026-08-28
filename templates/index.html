@@ -1,28 +1,27 @@
 <!doctype html>
-
 <html>
-
 <head>
-
 <meta charset="utf-8">
-
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <title>Viral AI Creator Assistant</title>
 
 <style>
-
 body{
     background:#090909;
     color:white;
     font-family:Arial,sans-serif;
     padding:30px;
-    max-width:1000px;
+    max-width:1100px;
     margin:auto;
 }
 
 h1{
     margin-bottom:25px;
+}
+
+h2{
+    margin-top:0;
 }
 
 form{
@@ -54,16 +53,20 @@ button{
 
 .card{
     background:#171717;
-    border:1px solid #252525;
+    border:1px solid #292929;
     border-radius:15px;
     padding:22px;
     margin:15px 0;
 }
 
+.error{
+    background:#351515;
+}
+
 .big-title{
-    font-size:24px;
+    font-size:25px;
     font-weight:bold;
-    line-height:1.35;
+    line-height:1.4;
 }
 
 .title-option{
@@ -71,11 +74,6 @@ button{
     padding:14px;
     border-radius:10px;
     margin:8px 0;
-}
-
-.hashtags{
-    font-size:18px;
-    line-height:1.8;
 }
 
 .tag{
@@ -86,6 +84,53 @@ button{
     margin:4px;
 }
 
+.stats{
+    display:grid;
+    grid-template-columns:repeat(auto-fit,minmax(160px,1fr));
+    gap:12px;
+}
+
+.stat{
+    background:#101010;
+    border-radius:12px;
+    padding:18px;
+    text-align:center;
+}
+
+.stat-number{
+    font-size:26px;
+    font-weight:bold;
+    margin-bottom:5px;
+}
+
+.stat-label{
+    color:#aaa;
+    font-size:14px;
+}
+
+.video{
+    background:#101010;
+    padding:16px;
+    border-radius:12px;
+    margin:10px 0;
+}
+
+.video-title{
+    font-size:18px;
+    font-weight:bold;
+    margin-bottom:8px;
+}
+
+.video-meta{
+    color:#aaa;
+    line-height:1.7;
+}
+
+a{
+    color:#ff8a61;
+    text-decoration:none;
+}
+
 .keyword{
     display:flex;
     justify-content:space-between;
@@ -93,28 +138,33 @@ button{
     padding:10px 0;
 }
 
-.stat-grid{
-    display:grid;
-    grid-template-columns:repeat(auto-fit,minmax(150px,1fr));
-    gap:10px;
-}
-
-.stat{
+.hashtag-row{
     background:#101010;
-    padding:15px;
+    padding:12px;
     border-radius:10px;
-    text-align:center;
+    margin:8px 0;
 }
 
-.number{
-    font-size:25px;
-    font-weight:bold;
+.small{
+    color:#aaa;
+    font-size:14px;
 }
 
-.error{
-    background:#351515;
-}
+@media(max-width:700px){
 
+    body{
+        padding:15px;
+    }
+
+    form{
+        flex-direction:column;
+    }
+
+    button{
+        width:100%;
+    }
+
+}
 </style>
 
 </head>
@@ -126,9 +176,9 @@ button{
 <form method="post">
 
 <input
-name="topic"
-placeholder="What is your Short about?"
-required
+    name="topic"
+    placeholder="What is your YouTube Short about?"
+    required
 >
 
 <button type="submit">
@@ -141,9 +191,7 @@ Analyze
 {% if error %}
 
 <div class="card error">
-
 {{ error }}
-
 </div>
 
 {% endif %}
@@ -156,7 +204,7 @@ Analyze
 
 <div class="card error">
 
-<h2>No results</h2>
+<h2>No results found</h2>
 
 <p>{{ report.message }}</p>
 
@@ -168,11 +216,172 @@ Analyze
 
 <div class="card">
 
-<h2>🎯 BEST TITLE TO USE</h2>
+<h2>🎯 Topic</h2>
 
 <div class="big-title">
+{{ report.topic }}
+</div>
 
-{{ report.best_title }}
+</div>
+
+
+
+<div class="card">
+
+<h2>📡 Live YouTube Data</h2>
+
+<div class="stats">
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.videos_analyzed }}
+</div>
+
+<div class="stat-label">
+Videos Analyzed
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.total_views_display }}
+</div>
+
+<div class="stat-label">
+Combined Views
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.average_views_display }}
+</div>
+
+<div class="stat-label">
+Average Views
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.average_likes_display }}
+</div>
+
+<div class="stat-label">
+Average Likes
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.average_engagement }}%
+</div>
+
+<div class="stat-label">
+Average Engagement
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.average_views_hour_display }}
+</div>
+
+<div class="stat-label">
+Avg Views / Hour
+</div>
+
+</div>
+
+</div>
+
+<p class="small">
+Views, likes and comments come from YouTube. Avg Views/Hour is calculated from current views divided by time since upload.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>🏆 Strongest Video Found</h2>
+
+<div class="video">
+
+<div class="video-title">
+
+{% if report.top_video.url %}
+
+<a href="{{ report.top_video.url }}" target="_blank">
+{{ report.top_video.title }}
+</a>
+
+{% else %}
+
+{{ report.top_video.title }}
+
+{% endif %}
+
+</div>
+
+<div class="video-meta">
+
+Channel:
+<strong>{{ report.top_video.channel }}</strong>
+
+<br>
+
+Views:
+<strong>{{ report.top_video.views_display }}</strong>
+
+<br>
+
+Likes:
+<strong>{{ report.top_video.likes_display }}</strong>
+
+<br>
+
+Comments:
+<strong>{{ report.top_video.comments_display }}</strong>
+
+<br>
+
+Engagement:
+<strong>{{ report.top_video.engagement }}%</strong>
+
+<br>
+
+Average Views/Hour:
+<strong>{{ report.top_video.views_hour_display }}</strong>
+
+<br>
+
+Age:
+<strong>{{ report.top_video.hours_old }} hours</strong>
+
+<br>
+
+Viral Score:
+<strong>{{ report.top_video.viral_score }}/100</strong>
+
+</div>
 
 </div>
 
@@ -182,7 +391,150 @@ Analyze
 
 <div class="card">
 
-<h2>🔥 ALTERNATIVE TITLES</h2>
+<h2>🚀 Top Performing Videos</h2>
+
+{% for video in report.top_videos %}
+
+<div class="video">
+
+<div class="video-title">
+
+{{ loop.index }}.
+
+{% if video.url %}
+
+<a href="{{ video.url }}" target="_blank">
+{{ video.title }}
+</a>
+
+{% else %}
+
+{{ video.title }}
+
+{% endif %}
+
+</div>
+
+<div class="video-meta">
+
+{{ video.channel }}
+
+<br>
+
+👁 {{ video.views_display }} views
+
+&nbsp; • &nbsp;
+
+👍 {{ video.likes_display }} likes
+
+&nbsp; • &nbsp;
+
+💬 {{ video.comments_display }}
+
+<br>
+
+⚡ {{ video.views_hour_display }} avg views/hour
+
+&nbsp; • &nbsp;
+
+📈 {{ video.engagement }}% engagement
+
+&nbsp; • &nbsp;
+
+🔥 {{ video.viral_score }}/100
+
+</div>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+
+
+<div class="card">
+
+<h2>⏱ Trending Freshness</h2>
+
+<div class="stats">
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.freshness.last_hour }}
+</div>
+
+<div class="stat-label">
+Uploaded Last Hour
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.freshness.last_6_hours }}
+</div>
+
+<div class="stat-label">
+Last 6 Hours
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.freshness.last_24_hours }}
+</div>
+
+<div class="stat-label">
+Last 24 Hours
+</div>
+
+</div>
+
+
+<div class="stat">
+
+<div class="stat-number">
+{{ report.freshness.last_7_days }}
+</div>
+
+<div class="stat-label">
+Last 7 Days
+</div>
+
+</div>
+
+</div>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>🔥 Best Performing Title Found</h2>
+
+<div class="big-title">
+{{ report.best_title }}
+</div>
+
+<p class="small">
+This is based on the highest-ranked video found in the current YouTube results.
+</p>
+
+</div>
+
+
+
+<div class="card">
+
+<h2>📌 Winning Titles</h2>
 
 {% for title in report.titles %}
 
@@ -200,13 +552,15 @@ Analyze
 
 <div class="card">
 
-<h2>#️⃣ HASHTAGS TO USE</h2>
+<h2>#️⃣ Hashtags To Consider</h2>
 
-<div class="hashtags">
+<div>
 
 {% for tag in report.hashtags %}
 
-<span class="tag">{{ tag }}</span>
+<span class="tag">
+{{ tag }}
+</span>
 
 {% endfor %}
 
@@ -216,9 +570,59 @@ Analyze
 
 
 
+{% if report.hashtag_details %}
+
 <div class="card">
 
-<h2>⚡ OPENING HOOKS</h2>
+<h2>📊 Hashtag Performance Signals</h2>
+
+{% for item in report.hashtag_details %}
+
+<div class="hashtag-row">
+
+<strong>{{ item.tag }}</strong>
+
+<br>
+
+<span class="small">
+
+Score:
+{{ item.score }}/100
+
+&nbsp; • &nbsp;
+
+{{ item.status }}
+
+&nbsp; • &nbsp;
+
+Used:
+{{ item.uses }}
+
+&nbsp; • &nbsp;
+
+Avg Engagement:
+{{ item.avg_engagement }}%
+
+&nbsp; • &nbsp;
+
+Avg Views/Hour:
+{{ item.avg_views_hour }}
+
+</span>
+
+</div>
+
+{% endfor %}
+
+</div>
+
+{% endif %}
+
+
+
+<div class="card">
+
+<h2>⚡ Hook Strategy</h2>
 
 {% for hook in report.hooks %}
 
@@ -236,70 +640,19 @@ Analyze
 
 <div class="card">
 
-<h2>📊 LIVE YOUTUBE DATA</h2>
-
-<div class="stat-grid">
-
-<div class="stat">
-
-<div class="number">
-{{ report.videos_analyzed }}
-</div>
-
-Videos Analyzed
-
-</div>
-
-
-<div class="stat">
-
-<div class="number">
-{{ report.freshness.last_hour }}
-</div>
-
-Last Hour
-
-</div>
-
-
-<div class="stat">
-
-<div class="number">
-{{ report.freshness.last_24_hours }}
-</div>
-
-Last 24 Hours
-
-</div>
-
-
-<div class="stat">
-
-<div class="number">
-{{ report.freshness.last_7_days }}
-</div>
-
-Last 7 Days
-
-</div>
-
-</div>
-
-</div>
-
-
-
-<div class="card">
-
-<h2>🔎 TRENDING KEYWORDS</h2>
+<h2>🔎 Trending Keywords</h2>
 
 {% for item in report.keywords %}
 
 <div class="keyword">
 
-<span>{{ item.keyword }}</span>
+<span>
+{{ item.keyword }}
+</span>
 
-<strong>{{ item.count }}</strong>
+<strong>
+{{ item.count }}
+</strong>
 
 </div>
 
@@ -314,5 +667,4 @@ Last 7 Days
 
 
 </body>
-
 </html>
