@@ -1,10 +1,15 @@
-from googleapiclient.discovery import build
+import os
+import re
 from collections import Counter
 from datetime import datetime, timezone
-import re
+
+from googleapiclient.discovery import build
 
 
-API_KEY = "AIzaSyAapo6UuuTFPH49ICzFkHBxkrKNmC1Uzfo"
+API_KEY = os.environ.get("GOOGLE_API_KEY")
+
+if not API_KEY:
+    raise RuntimeError("GOOGLE_API_KEY environment variable is missing")
 
 
 youtube = build(
@@ -14,38 +19,104 @@ youtube = build(
 )
 
 
+# --------------------------------------------------
+# HELPERS
+# --------------------------------------------------
+
+def parse_youtube_duration(duration):
+    """
+    Convert YouTube ISO 8601 duration like:
+    PT45S
+    PT1M20S
+    PT2M5S
+    into total seconds.
+    """
+
+    hours = 0
+    minutes = 0
+    seconds = 0
+
+    h = re.search(r"(\d+)H", duration)
+    m = re.search(r"(\d+)M", duration)
+    s = re.search(r"(\d+)S", duration)
+
+    if h:
+        hours = int(h.group(1))
+
+    if m:
+        minutes = int(m.group(1))
+
+    if s:
+        seconds = int(s.group(1))
+
+    return (hours * 3600) + (minutes * 60) + seconds
+
+
+def hours_since(published_at):
+    try:
+        published = datetime.fromisoformat(
+            published_at.replace("Z", "+00:00")
+        )
+
+        now = datetime.now(timezone.utc)
+
+        age = now - published
+
+        return max(age.total_seconds() / 3600, 0.01)
+
+    except Exception:
+        return 999999
+
+
+def extract_hashtags(title, description):
+    text = f"{title} {description}"
+
+    tags = re.findall(
+        r"#([A-Za-z0-9_]+)",
+        text
+    )
+
+    return list(dict.fromkeys(tags))
+
+
+# --------------------------------------------------
+# COLLECT REAL YOUTUBE DATA
+# --------------------------------------------------
 
 def get_shorts(topic):
 
-    videos = []
+    collected = {}
 
     searches = [
         topic,
-        topic + " shorts",
-        topic + " viral",
-        topic + " gameplay"
+        f"{topic} shorts",
+        f"{topic} #shorts",
+        f"{topic} viral"
     ]
 
     for search in searches:
 
         try:
+
             result = youtube.search().list(
                 part="snippet",
                 q=search,
                 type="video",
                 videoDuration="short",
-                order="date",
-                maxResults=10
+                order="relevance",
+                maxResults=25
             ).execute()
 
-        except Exception:
-            print("YouTube API unavailable - using offline mode")
+        except Exception as e:
+
+            print("YouTube search error:", e)
             continue
 
 
         ids = [
-            x["id"]["videoId"]
-            for x in result.get("items", [])
+            item["id"]["videoId"]
+            for item in result.get("items", [])
+            if item.get("id", {}).get("videoId")
         ]
 
 
@@ -54,550 +125,514 @@ def get_shorts(topic):
 
 
         try:
+
             details = youtube.videos().list(
                 part="snippet,statistics,contentDetails",
                 id=",".join(ids)
             ).execute()
 
-        except Exception:
+        except Exception as e:
+
+            print("YouTube video detail error:", e)
             continue
 
 
         for video in details.get("items", []):
 
+            video_id = video.get("id")
+
+            # Avoid duplicates from multiple searches
+            if video_id in collected:
+                continue
+
+
             stats = video.get("statistics", {})
             snippet = video.get("snippet", {})
+            content = video.get("contentDetails", {})
 
-            videos.append({
-                "title": snippet.get("title",""),
-                "views": int(stats.get("viewCount",0)),
-                "likes": int(stats.get("likeCount",0)),
-                "comments": int(stats.get("commentCount",0)),
-                "published": snippet.get("publishedAt",""),
-                "tags": snippet.get("tags",[])
-            })
+
+            duration_text = content.get("duration", "")
+
+            duration_seconds = parse_youtube_duration(
+                duration_text
+            )
+
+
+            # YouTube API "short" means under 4 minutes.
+            # Filter more aggressively for Shorts.
+            if duration_seconds <= 0:
+                continue
+
+            if duration_seconds > 180:
+                continue
+
+
+            title = snippet.get("title", "")
+            description = snippet.get("description", "")
+
+            views = int(
+                stats.get("viewCount", 0)
+            )
+
+            likes = int(
+                stats.get("likeCount", 0)
+            )
+
+            comments = int(
+                stats.get("commentCount", 0)
+            )
+
+            published = snippet.get(
+                "publishedAt",
+                ""
+            )
+
+            age_hours = hours_since(
+                published
+            )
+
+
+            # Average views per hour since publication.
+            # This is NOT YouTube giving us historical velocity.
+            # It is our own calculated average.
+            views_per_hour = round(
+                views / age_hours,
+                2
+            )
+
+
+            # Public engagement estimate
+            if views > 0:
+
+                engagement = (
+                    (likes + comments) / views
+                ) * 100
+
+            else:
+
+                engagement = 0
+
+
+            hashtags = extract_hashtags(
+                title,
+                description
+            )
+
+
+            collected[video_id] = {
+
+                "video_id": video_id,
+
+                "url":
+                    f"https://www.youtube.com/watch?v={video_id}",
+
+                "title": title,
+
+                "description": description,
+
+                "channel":
+                    snippet.get("channelTitle", ""),
+
+                "views": views,
+
+                "likes": likes,
+
+                "comments": comments,
+
+                "published": published,
+
+                "hours_old":
+                    round(age_hours, 2),
+
+                "views_hour":
+                    views_per_hour,
+
+                "engagement":
+                    round(engagement, 2),
+
+                "hashtags":
+                    hashtags,
+
+                "tags":
+                    snippet.get("tags", []),
+
+                "duration_seconds":
+                    duration_seconds
+            }
+
+
+    videos = list(
+        collected.values()
+    )
+
+
+    # Highest calculated velocity first
+    videos.sort(
+        key=lambda x: x.get(
+            "views_hour",
+            0
+        ),
+        reverse=True
+    )
 
 
     return videos
+
+
+# --------------------------------------------------
+# VIRAL VELOCITY
+# --------------------------------------------------
 
 def viral_velocity(videos):
 
     ranked = sorted(
         videos,
-        key=lambda x:x["views_hour"],
+        key=lambda x: x.get(
+            "views_hour",
+            0
+        ),
         reverse=True
     )
 
     return ranked[:10]
 
 
+# --------------------------------------------------
+# KEYWORDS
+# --------------------------------------------------
 
 def analyze_keywords(videos):
 
-    words=[]
+    words = []
 
-    for v in videos:
+    ignore = {
+        "this",
+        "that",
+        "with",
+        "from",
+        "your",
+        "shorts",
+        "video",
+        "youtube",
+        "have",
+        "what",
+        "when",
+        "they",
+        "will",
+        "just",
+        "about"
+    }
 
-        words += re.findall(
-            r"\b[a-z]{4,}\b",
-            v["title"].lower()
+
+    for video in videos:
+
+        title = video.get(
+            "title",
+            ""
+        ).lower()
+
+
+        found = re.findall(
+            r"\b[a-z0-9]{4,}\b",
+            title
         )
 
 
-    return Counter(words).most_common(20)
+        for word in found:
+
+            if word not in ignore:
+
+                words.append(
+                    word
+                )
 
 
+    return Counter(
+        words
+    ).most_common(20)
+
+
+# --------------------------------------------------
+# HASHTAGS
+# --------------------------------------------------
 
 def analyze_hashtags(videos):
 
     scores = {}
 
-    for v in videos:
-        hours = v.get("hours_old",999)
-        velocity = v.get("views_hour",0)
-        engagement = v.get("engagement",0)
 
-        for tag in v.get("hashtags",[]):
+    for video in videos:
+
+        hours = video.get(
+            "hours_old",
+            999
+        )
+
+        velocity = video.get(
+            "views_hour",
+            0
+        )
+
+        engagement = video.get(
+            "engagement",
+            0
+        )
+
+
+        for tag in video.get(
+            "hashtags",
+            []
+        ):
+
+            tag = tag.lower()
+
 
             if tag not in scores:
+
                 scores[tag] = {
-                    "uses":0,
-                    "recent":0,
-                    "velocity":0,
-                    "engagement":0
+
+                    "uses": 0,
+
+                    "recent": 0,
+
+                    "velocity": 0,
+
+                    "engagement_total": 0
                 }
+
 
             scores[tag]["uses"] += 1
 
+
             if hours <= 24:
+
                 scores[tag]["recent"] += 1
 
+
             scores[tag]["velocity"] += velocity
-            scores[tag]["engagement"] += engagement
+
+            scores[tag]["engagement_total"] += engagement
 
 
-    results=[]
+    results = []
 
-    for tag,data in scores.items():
 
-        score = (
-            min(data["uses"]*2,20)
-            + min(data["recent"]*5,25)
-            + min(data["velocity"]/10000,35)
-            + min(data["engagement"]*20,20)
+    for tag, data in scores.items():
+
+        uses = data["uses"]
+
+        avg_velocity = (
+            data["velocity"] / uses
+            if uses
+            else 0
         )
 
-        score=round(min(score,100))
+        avg_engagement = (
+            data["engagement_total"] / uses
+            if uses
+            else 0
+        )
 
-        if score >= 85:
-            status="🔥 EXPLODING"
-        elif score >= 65:
-            status="🚀 RISING"
-        elif score >= 40:
-            status="🟡 STABLE"
+
+        score = (
+
+            min(
+                uses * 4,
+                25
+            )
+
+            +
+
+            min(
+                data["recent"] * 5,
+                25
+            )
+
+            +
+
+            min(
+                avg_velocity / 5000,
+                30
+            )
+
+            +
+
+            min(
+                avg_engagement * 2,
+                20
+            )
+        )
+
+
+        score = round(
+            min(
+                score,
+                100
+            )
+        )
+
+
+        if score >= 80:
+
+            status = "EXPLODING"
+
+        elif score >= 60:
+
+            status = "RISING"
+
+        elif score >= 35:
+
+            status = "ACTIVE"
+
         else:
-            status="❄️ DYING"
 
-        results.append((tag,score,status,data))
+            status = "LOW SIGNAL"
 
-    results.sort(key=lambda x:x[1],reverse=True)
+
+        results.append(
+            (
+                tag,
+                score,
+                status,
+                {
+                    "uses":
+                        uses,
+
+                    "recent":
+                        data["recent"],
+
+                    "avg_views_hour":
+                        round(
+                            avg_velocity,
+                            2
+                        ),
+
+                    "avg_engagement":
+                        round(
+                            avg_engagement,
+                            2
+                        )
+                }
+            )
+        )
+
+
+    results.sort(
+        key=lambda x: x[1],
+        reverse=True
+    )
+
 
     return results[:15]
 
 
-
-
-# ===== VIRAL FALLBACK COLLECTOR =====
-
-def offline_trending(topic):
-
-    samples = [
-        {
-            "title": f"{topic} insane clutch moment",
-            "views": 250000,
-            "likes": 18000,
-            "comments": 900,
-            "published": "today",
-            "tags": [topic,"viral","shorts","gaming"]
-        },
-        {
-            "title": f"Nobody expected this {topic} comeback",
-            "views": 800000,
-            "likes": 52000,
-            "comments": 2400,
-            "published": "today",
-            "tags": [topic,"challenge","reaction"]
-        },
-        {
-            "title": f"I tried the impossible {topic}",
-            "views": 430000,
-            "likes": 31000,
-            "comments": 1200,
-            "published": "yesterday",
-            "tags": [topic,"pro","gameplay"]
-        }
-    ]
-
-    return samples
-
-
-
-# ===== VIRAL SCORING ENGINE =====
+# --------------------------------------------------
+# VIRAL SCORE
+# --------------------------------------------------
 
 def viral_score(video):
 
-    title = video.get("title","").lower()
+    views = video.get(
+        "views",
+        0
+    )
+
+    velocity = video.get(
+        "views_hour",
+        0
+    )
+
+    engagement = video.get(
+        "engagement",
+        0
+    )
+
+    hours = video.get(
+        "hours_old",
+        999
+    )
+
 
     score = 0
 
-    hooks = [
-        "nobody",
-        "impossible",
-        "secret",
-        "unexpected",
-        "crazy",
-        "insane",
-        "last",
-        "only",
-        "challenge",
-        "clutch"
-    ]
 
-    for h in hooks:
-        if h in title:
-            score += 8
+    if velocity >= 100000:
 
-    views = video.get("views",0)
-    likes = video.get("likes",0)
-    comments = video.get("comments",0)
+        score += 40
 
-    if views > 500000:
-        score += 25
-    elif views > 100000:
+    elif velocity >= 25000:
+
+        score += 30
+
+    elif velocity >= 5000:
+
+        score += 20
+
+    elif velocity >= 1000:
+
+        score += 10
+
+
+    if engagement >= 10:
+
+        score += 30
+
+    elif engagement >= 6:
+
+        score += 20
+
+    elif engagement >= 3:
+
+        score += 10
+
+
+    if hours <= 6:
+
+        score += 20
+
+    elif hours <= 24:
+
         score += 15
 
-    if views:
-        engagement = ((likes + comments) / views) * 100
-        score += min(int(engagement * 5),20)
+    elif hours <= 72:
 
-    score += min(comments // 100,15)
+        score += 10
 
-    return min(score,100)
+
+    if views >= 1000000:
+
+        score += 10
+
+    elif views >= 100000:
+
+        score += 5
+
+
+    return min(
+        score,
+        100
+    )
 
 
 def rank_viral_videos(videos):
 
-    ranked=[]
+    ranked = []
 
-    for v in videos:
-        ranked.append(
-            (
-                viral_score(v),
-                v
-            )
-        )
-
-    ranked.sort(
-        key=lambda x:x[0],
-        reverse=True
-    )
-
-    return ranked
-
-
-
-# ===== VIRAL IDEA GENERATOR =====
-
-def generate_video_ideas(topic):
-
-    return [
-        {
-            "title": f"They Thought This {topic} Was Impossible...",
-            "hook": f"Everyone said this {topic} challenge could not be done.",
-            "thumbnail": "shocked reaction + impossible situation",
-            "structure": "Hook -> Challenge -> Pressure -> Final payoff"
-        },
-        {
-            "title": f"I Had One Chance To Win This {topic}",
-            "hook": "One mistake and everything was over...",
-            "thumbnail": "low health + enemy advantage",
-            "structure": "Setup -> Rising tension -> Unexpected victory"
-        },
-        {
-            "title": f"The Last Seconds Changed Everything ({topic})",
-            "hook": "Wait until you see what happens at the end...",
-            "thumbnail": "timer + intense moment",
-            "structure": "Mystery -> Escalation -> Replay moment"
-        }
-    ]
-
-
-
-# ===== RETENTION ANALYZER =====
-
-def analyze_retention(video_description):
-
-    score = 50
-    advice = []
-
-    text = video_description.lower()
-
-    if "wait" in text or "until" in text:
-        score += 10
-        advice.append("Strong curiosity hook")
-
-    if "impossible" in text or "challenge" in text:
-        score += 10
-        advice.append("High stakes element")
-
-    if "end" in text or "final" in text:
-        score += 10
-        advice.append("Creates completion pressure")
-
-    if "reaction" in text or "surprise" in text:
-        score += 5
-        advice.append("Emotional payoff")
-
-    if len(text) < 30:
-        advice.append("Add more context and tension")
-
-    return {
-        "retention_score": min(score,100),
-        "recommendations": advice
-    }
-
-
-
-# ===== THUMBNAIL INTELLIGENCE =====
-
-def analyze_thumbnail(title):
-
-    score = 50
-    advice = []
-
-    text = title.lower()
-
-    if "!" in title:
-        score += 5
-        advice.append("Strong emotional emphasis")
-
-    if "impossible" in text or "nobody" in text or "secret" in text:
-        score += 15
-        advice.append("High curiosity trigger")
-
-    if "vs" in text or "challenge" in text:
-        score += 10
-        advice.append("Creates competition tension")
-
-    if len(title.split()) < 4:
-        advice.append("Add more context")
-
-    if len(title.split()) > 12:
-        score -= 5
-        advice.append("Reduce text complexity")
-
-    return {
-        "thumbnail_score": min(max(score,0),100),
-        "recommendations": advice
-    }
-
-
-
-# ===== COMPETITOR BREAKDOWN ENGINE =====
-
-def analyze_competitor(videos):
-
-    results = {
-        "winning_patterns": [],
-        "common_hooks": [],
-        "recommendations": []
-    }
 
     for video in videos:
 
-        title = video.get("title","").lower()
-
-        if "challenge" in title:
-            results["common_hooks"].append("Challenge format")
-
-        if "impossible" in title or "nobody" in title:
-            results["common_hooks"].append("Curiosity gap")
-
-        if "secret" in title or "hidden" in title:
-            results["common_hooks"].append("Mystery hook")
-
-    if results["common_hooks"]:
-        results["winning_patterns"].append(
-            "Strong emotional titles with unanswered questions"
+        ranked.append(
+            (
+                viral_score(video),
+                video
+            )
         )
 
-    results["recommendations"].append(
-        "Study pacing, hook timing, and payoff structure"
-    )
 
-    return results
-
-
-
-# ===== AI SCRIPT BLUEPRINT GENERATOR =====
-
-def generate_script_blueprint(topic):
-
-    return {
-        "hook": f"You won't believe what happened during this {topic}...",
-        
-        "opening": 
-        "Show the most intense moment immediately to create curiosity.",
-
-        "setup":
-        f"Explain the challenge and why this {topic} situation matters.",
-
-        "tension":
-        "Increase pressure, remove downtime, and make viewers question the outcome.",
-
-        "payoff":
-        "Deliver the unexpected result or biggest moment.",
-
-        "ending":
-        "Add reaction, replay value, or a reason to watch again."
-    }
-
-
-
-# ===== MULTI PLATFORM ADAPTER =====
-
-def adapt_for_platform(topic, platform):
-
-    if platform.lower() == "tiktok":
-        return {
-            "style": "Fast hook, trend pacing, instant payoff",
-            "hook": f"POV: This {topic} went completely wrong...",
-            "ending": "Loop ending for replay"
-        }
-
-    elif platform.lower() == "instagram":
-        return {
-            "style": "Visual storytelling and emotional moments",
-            "hook": f"You need to see this {topic} moment...",
-            "ending": "Reaction or cinematic replay"
-        }
-
-    else:
-        return {
-            "style": "YouTube Shorts retention structure",
-            "hook": f"Nobody expected this {topic}...",
-            "ending": "Big payoff + replay value"
-        }
-
-
-
-# ===== VIRAL TREND PREDICTION ENGINE =====
-
-def predict_trend(topic, videos):
-
-    score = 50
-    reasons = []
-
-    text = topic.lower()
-
-    if any(x in text for x in ["challenge","clutch","secret","impossible","1v4"]):
-        score += 15
-        reasons.append("High curiosity format")
-
-    if videos:
-        avg_views = sum(v.get("views",0) for v in videos) / len(videos)
-
-        if avg_views > 500000:
-            score += 20
-            reasons.append("Strong audience demand")
-
-        elif avg_views > 100000:
-            score += 10
-            reasons.append("Growing interest")
-
-    if any(x in text for x in ["new","update","season","event"]):
-        score += 10
-        reasons.append("Fresh topic advantage")
-
-    return {
-        "trend_score": min(score,100),
-        "signals": reasons
-    }
-
-
-
-# ===== AI TITLE A/B TEST ENGINE =====
-
-def test_titles(topic):
-
-    titles = [
-        f"Nobody Expected This {topic} To Happen",
-        f"I Tried The Impossible {topic} Challenge",
-        f"The Last Seconds Changed Everything ({topic})",
-        f"They Thought I Couldn't Do This {topic}",
-        f"This {topic} Moment Shocked Everyone"
-    ]
-
-    results=[]
-
-    for title in titles:
-        score=50
-        text=title.lower()
-
-        if any(x in text for x in ["nobody","impossible","secret","shocked"]):
-            score += 15
-
-        if any(x in text for x in ["challenge","tried","couldn't"]):
-            score += 10
-
-        if "!" in title:
-            score += 5
-
-        results.append({
-            "title": title,
-            "ctr_score": min(score,100)
-        })
-
-    return sorted(
-        results,
-        key=lambda x:x["ctr_score"],
+    ranked.sort(
+        key=lambda x: x[0],
         reverse=True
     )
 
 
-
-# ===== FIRST 3 SECOND HOOK ENGINE =====
-
-def generate_hooks(topic):
-
-    hooks = [
-        f"Nobody believed this {topic} was possible...",
-        f"I had only seconds left during this {topic}...",
-        f"Everyone thought I was going to lose this {topic}...",
-        f"This {topic} went completely wrong...",
-        f"Wait until you see how this {topic} ends..."
-    ]
-
-    results=[]
-
-    for hook in hooks:
-        score=50
-        text=hook.lower()
-
-        if any(x in text for x in ["nobody","everyone","impossible"]):
-            score += 15
-
-        if any(x in text for x in ["wait","seconds","ends"]):
-            score += 15
-
-        if "wrong" in text:
-            score += 10
-
-        results.append({
-            "hook": hook,
-            "retention_score": min(score,100)
-        })
-
-    return sorted(
-        results,
-        key=lambda x:x["retention_score"],
-        reverse=True
-    )
-
-
-
-# ===== MASTER VIRAL ANALYZER =====
-
-def master_viral_analysis(topic):
-
-    report = {}
-
-    report["topic"] = topic
-
-    try:
-        report["titles"] = test_titles(topic)[:3]
-    except:
-        report["titles"] = []
-
-    try:
-        report["hooks"] = generate_hooks(topic)[:3]
-    except:
-        report["hooks"] = []
-
-    try:
-        report["ideas"] = generate_video_ideas(topic)
-    except:
-        report["ideas"] = []
-
-    try:
-        report["trend"] = predict_trend(topic, [])
-    except:
-        report["trend"] = {}
-
-    try:
-        report["script"] = generate_script_blueprint(topic)
-    except:
-        report["script"] = {}
-
-    return report
-
+    return ranked
