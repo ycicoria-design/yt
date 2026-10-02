@@ -24,7 +24,7 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private FrameLayout root;
-    private LinearLayout homePanel;
+    private ScrollView homeScroll;\n    private LinearLayout homePanel;
     private ScrollView menuScroll;
     private LinearLayout menuPanel;
     private LinearLayout categoryContent;
@@ -62,7 +62,7 @@ public class MainActivity extends Activity {
     }
 
     private void buildHome() {
-        ScrollView homeScroll = new ScrollView(this);
+        homeScroll = new ScrollView(this);
         homeScroll.setFillViewport(true);
         root.addView(homeScroll, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -324,13 +324,13 @@ public class MainActivity extends Activity {
     }
 
     private void showHome() {
-        homePanel.getParent().getParent().setVisibility(View.VISIBLE);
+        homeScroll.setVisibility(View.VISIBLE);
         menuScroll.setVisibility(View.GONE);
         restoreBubble.setVisibility(View.GONE);
     }
 
     private void showMenu(String category) {
-        homePanel.getParent().getParent().setVisibility(View.GONE);
+        homeScroll.setVisibility(View.GONE);
         menuScroll.setVisibility(View.VISIBLE);
         menuPanel.setAlpha(1f);
         renderCategory(category);
