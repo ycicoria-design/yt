@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Screen Share Admin</title>
+<style>
+:root{color-scheme:dark;--bg:#090b0f;--card:#121720;--card2:#181e29;--line:#2a3341;--accent:#44f5bb;--muted:#9aa4b5}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#13221e 0,#090b0f 38%);font:15px system-ui,-apple-system,Segoe UI,sans-serif;color:#fff}
+.wrap{max-width:1180px;margin:auto;padding:24px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:20px}
+h1{margin:0;font-size:24px}.muted{color:var(--muted)}.card{background:rgba(18,23,32,.96);border:1px solid var(--line);border-radius:18px;padding:18px}
+.login{max-width:420px;margin:12vh auto}.field{width:100%;padding:13px 14px;border-radius:12px;border:1px solid var(--line);background:#0d1118;color:#fff;margin:12px 0}
+button{border:0;border-radius:12px;padding:12px 15px;font-weight:750;cursor:pointer}.primary{background:var(--accent);color:#07110d}.secondary{background:var(--card2);color:#fff;border:1px solid var(--line)}
+.badge{display:inline-flex;align-items:center;gap:7px;padding:7px 10px;border-radius:999px;background:#0d1c17;color:var(--accent);font-weight:700}.dot{width:8px;height:8px;border-radius:50%;background:var(--accent)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px}.user h3{margin:0 0 4px}.user .meta{font-size:12px;color:var(--muted);word-break:break-all}.actions{display:flex;gap:8px;margin-top:14px}
+.viewer{margin-top:20px;display:none}.viewer.on{display:block}.videoWrap{background:#000;border:1px solid var(--line);border-radius:18px;overflow:hidden;min-height:320px;display:grid;place-items:center}
+video{width:100%;max-height:72vh;background:#000}.viewerHead{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.empty{padding:28px;text-align:center;color:var(--muted)}.error{color:#ff9b9b;margin-top:8px}
+@media(max-width:640px){.wrap{padding:14px}.top{align-items:flex-start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <section id="login" class="card login">
+    <h1>Screen Share Admin</h1>
+    <p class="muted">Sign in to view users who are actively sharing their screen.</p>
+    <input id="password" class="field" type="password" placeholder="Admin password" autocomplete="current-password">
+    <button id="loginBtn" class="primary" style="width:100%">Sign in</button>
+    <div id="loginErr" class="error"></div>
+  </section>
+
+  <main id="dashboard" hidden>
+    <div class="top">
+      <div><h1>Active screen shares</h1><div class="muted">Only users who tapped Share Screen and accepted Android's capture prompt appear here.</div></div>
+      <div class="badge"><span class="dot"></span><span id="count">0 active</span></div>
+    </div>
+    <div id="users" class="grid"></div>
+
+    <section id="viewer" class="viewer">
+      <div class="viewerHead"><div><strong id="viewerName">Viewer</strong><div id="viewerId" class="muted"></div></div><button id="closeView" class="secondary">Close viewer</button></div>
+      <div class="videoWrap"><video id="video" autoplay playsinline muted></video></div>
+    </section>
+  </main>
+</div>
+
+<script>
+let token="", ws=null, adminId="", pc=null, viewing=null;
+const $=id=>document.getElementById(id);
+
+$("loginBtn").onclick=async()=>{
+  $("loginErr").textContent="";
+  try{
+    const r=await fetch("/api/login",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({password:$("password").value})});
+    if(!r.ok) throw new Error("Invalid password");
+    token=(await r.json()).token;
+    $("login").hidden=true;$("dashboard").hidden=false;connectWs();
+  }catch(e){$("loginErr").textContent=e.message}
+};
+$("password").addEventListener("keydown",e=>{if(e.key==="Enter")$("loginBtn").click()});
+
+function connectWs(){
+  const proto=location.protocol==="https:"?"wss":"ws";
+  ws=new WebSocket(proto+"://"+location.host+"/ws");
+  ws.onopen=()=>ws.send(JSON.stringify({type:"hello",role:"admin",token}));
+  ws.onmessage=async(ev)=>{
+    const m=JSON.parse(ev.data);
+    if(m.type==="hello-ok"){adminId=m.id}
+    if(m.type==="clients") renderUsers(m.clients||[]);
+    if(m.type==="signal") await onSignal(m);
+  };
+  ws.onclose=()=>setTimeout(connectWs,1500);
+}
+function renderUsers(list){
+  $("count").textContent=list.length+" active";
+  const box=$("users");box.innerHTML="";
+  if(!list.length){box.innerHTML='<div class="card empty">No one is sharing right now.</div>';return}
+  list.forEach(u=>{
+    const d=document.createElement("div");d.className="card user";
+    d.innerHTML='<h3></h3><div class="meta"></div><div class="actions"><button class="primary">View screen</button></div>';
+    d.querySelector("h3").textContent=u.name||"Android user";
+    d.querySelector(".meta").textContent=u.deviceId;
+    d.querySelector("button").onclick=()=>startView(u);
+    box.appendChild(d);
+  });
+}
+async function startView(u){
+  closePc();
+  viewing=u.deviceId;
+  $("viewerName").textContent=u.name||"Android user";
+  $("viewerId").textContent=u.deviceId;
+  $("viewer").classList.add("on");
+  pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  pc.addTransceiver("video",{direction:"recvonly"});
+  pc.ontrack=e=>{$("video").srcObject=e.streams[0]};
+  pc.onicecandidate=e=>{if(e.candidate) sendSignal(u.deviceId,{kind:"candidate",candidate:e.candidate})};
+  const offer=await pc.createOffer();
+  await pc.setLocalDescription(offer);
+  sendSignal(u.deviceId,{kind:"offer",sdp:offer.sdp,type:offer.type});
+}
+async function onSignal(m){
+  if(!pc || m.from!==viewing) return;
+  const d=m.data;
+  if(d.kind==="answer"){
+    await pc.setRemoteDescription({type:d.type||"answer",sdp:d.sdp});
+  } else if(d.kind==="candidate" && d.candidate){
+    try{await pc.addIceCandidate(d.candidate)}catch{}
+  }
+}
+function sendSignal(to,data){
+  if(ws&&ws.readyState===1) ws.send(JSON.stringify({type:"signal",to,data}));
+}
+function closePc(){
+  if(pc){pc.close();pc=null}
+  $("video").srcObject=null;
+}
+$("closeView").onclick=()=>{closePc();viewing=null;$("viewer").classList.remove("on")};
+</script>
+</body>
+</html>
