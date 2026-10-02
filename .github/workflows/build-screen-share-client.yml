@@ -1,0 +1,46 @@
+name: Build Consent Screen Share APK
+
+on:
+  push:
+    branches:
+      - screen-share-admin
+    paths:
+      - "screen-share-client/**"
+      - ".github/workflows/build-screen-share-client.yml"
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.7"
+
+      - name: Build APK
+        working-directory: screen-share-client
+        run: gradle :app:assembleDebug --stacktrace
+
+      - name: Prepare APK
+        run: cp screen-share-client/app/build/outputs/apk/debug/app-debug.apk Consent-Screen-Share.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Consent-Screen-Share-APK
+          path: Consent-Screen-Share.apk
+          if-no-files-found: error
