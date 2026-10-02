@@ -24,7 +24,8 @@ import android.widget.TextView;
 
 public class MainActivity extends Activity {
     private FrameLayout root;
-    private ScrollView homeScroll;\n    private LinearLayout homePanel;
+    private ScrollView homeScroll;
+    private LinearLayout homePanel;
     private ScrollView menuScroll;
     private LinearLayout menuPanel;
     private LinearLayout categoryContent;
