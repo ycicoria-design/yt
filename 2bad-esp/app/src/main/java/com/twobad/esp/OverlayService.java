@@ -302,7 +302,7 @@ public class OverlayService extends Service {
 
             gap(content, 8);
 
-            Button stop = actionButton("CLOSE OVERLAY");
+            Button stop = actionButton("DISABLE OVERLAY");
             content.addView(stop, new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT, dp(48)
             ));
