@@ -22,7 +22,8 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
     private LinearLayout root;
     private TextView status;
-    private Button mainButton;\n    private Button stopButton;
+    private Button mainButton;
+    private Button stopButton;
 
     private final int bg = Color.rgb(8, 10, 14);
     private final int card = Color.rgb(17, 21, 28);
