@@ -22,7 +22,7 @@ import android.widget.TextView;
 public class MainActivity extends Activity {
     private LinearLayout root;
     private TextView status;
-    private Button mainButton;
+    private Button mainButton;\n    private Button stopButton;
 
     private final int bg = Color.rgb(8, 10, 14);
     private final int card = Color.rgb(17, 21, 28);
@@ -97,9 +97,23 @@ public class MainActivity extends Activity {
         ));
         mainButton.setOnClickListener(v -> handleMainAction());
 
+        addGap(10);
+
+        stopButton = new Button(this);
+        stopButton.setText("STOP OVERLAY");
+        stopButton.setTextSize(13);
+        stopButton.setTypeface(Typeface.DEFAULT_BOLD);
+        stopButton.setAllCaps(false);
+        stopButton.setTextColor(Color.WHITE);
+        stopButton.setBackground(roundRect(Color.rgb(140, 35, 45), 16));
+        root.addView(stopButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(54)
+        ));
+        stopButton.setOnClickListener(v -> stopOverlay());
+
         addGap(12);
 
-        TextView help = text("After enabling it once, the 2B bubble can stay over other apps. Tap the bubble to open the categorized menu.", 11, muted, false);
+        TextView help = text("Tap START OVERLAY to show the 2B bubble. Tap STOP OVERLAY anytime to remove it completely. You can also disable it from Utility inside the floating menu.", 11, muted, false);
         help.setGravity(Gravity.CENTER);
         root.addView(help, matchWrap());
     }
@@ -121,6 +135,12 @@ public class MainActivity extends Activity {
             startService(service);
         }
         moveTaskToBack(true);
+    }
+
+    private void stopOverlay() {
+        stopService(new Intent(this, OverlayService.class));
+        status.setText("OVERLAY STOPPED");
+        status.setTextColor(Color.WHITE);
     }
 
     private void updateState() {
