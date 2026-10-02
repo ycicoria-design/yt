@@ -14,9 +14,9 @@ app.use((req,res,next)=>{
   next();
 });
 
-const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD;
+const ADMIN_PASSWORD = process.env.ADMIN_KEY;
 if (!ADMIN_PASSWORD) {
-  console.error("ADMIN_PASSWORD is required");
+  console.error("ADMIN_KEY is required");
   process.exit(1);
 }
 
